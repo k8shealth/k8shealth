@@ -1,0 +1,107 @@
+# k8shealth demo workloads.
+#
+# Three tiny apps in their own namespace, labelled so the k8shealth policy injects the health agent
+# into each pod. Nothing here contains an agent: the sidecar is added by the Kyverno policy, and the
+# checks below are plain pod annotations (k8shealth.io/health-agent-checks).
+#
+#   kubectl apply -f demo-workloads.yaml
+#
+# "web" has one check that fails on purpose (/legacy returns 404) so you can see an incident open,
+# get confirmed after repeated failures, and be acknowledged in the dashboard.
+# Remove everything with:  kubectl delete namespace demo-apps
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-apps
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels:
+        app: web
+        k8shealth.io/enabled: "enabled"
+      annotations:
+        k8shealth.io/health-agent-checks: |
+          [
+            {"name":"Homepage","kind":"http","value":{"url":"http://localhost:80","statusCode":"200","contains":"nginx"}},
+            {"name":"Config file","kind":"file","value":{"path":"/etc/nginx/nginx.conf","mode":"readable"}},
+            {"name":"Legacy endpoint (fails on purpose)","kind":"http","value":{"url":"http://localhost:80/legacy","statusCode":"200","timeoutMs":2000}}
+          ]
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports: [{containerPort: 80}]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: api}
+  template:
+    metadata:
+      labels:
+        app: api
+        k8shealth.io/enabled: "enabled"
+      annotations:
+        k8shealth.io/health-agent-checks: |
+          [
+            {"name":"API health","kind":"http","value":{"url":"http://localhost:80/health","statusCode":"200","timeoutMs":2000}}
+          ]
+    spec:
+      containers:
+        - name: api
+          # Any image works as long as it has a shell: the injected agent runs a small script inside the container.
+          image: busybox:1.36
+          command: ["sh", "-c", "mkdir -p /www && echo ok > /www/health && exec httpd -f -p 80 -h /www"]
+          ports: [{containerPort: 80}]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: demo-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: db}
+  template:
+    metadata:
+      labels:
+        app: db
+        k8shealth.io/enabled: "enabled"
+      annotations:
+        k8shealth.io/health-agent-checks: |
+          [
+            {"name":"DB connection","kind":"mysql","value":{"host":"localhost","db":"demo","user":"root","pass":"demo-only-password"}}
+          ]
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          env:
+            # Throwaway password for a throwaway demo database; never reuse it.
+            - {name: MYSQL_ROOT_PASSWORD, value: demo-only-password}
+            - {name: MYSQL_DATABASE, value: demo}
+          ports: [{containerPort: 3306}]
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 512Mi}

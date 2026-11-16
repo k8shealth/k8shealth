@@ -1,0 +1,61 @@
+{{- if and .Values.cluster.inCluster.enabled .Values.cluster.inCluster.rbac.create }}
+# Read-only access for the manager to the cluster it runs in. No write verbs anywhere.
+# The manager registers this cluster itself on first start (HM_INCLUSTER_AUTOREGISTER), using the pod's
+# service account token, so nothing has to be created or pasted by hand.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "helm-chart.fullname" . }}-reader
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [nodes, namespaces, pods, services, endpoints, events, persistentvolumeclaims, persistentvolumes, resourcequotas, limitranges]
+    verbs: [get, list, watch]
+  {{- if .Values.cluster.inCluster.rbac.podLogs }}
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  {{- end }}
+  {{- if .Values.cluster.inCluster.rbac.nodeProxy }}
+  # Kubelet disk statistics. Off by default: nodes/proxy is a broad subresource (it reaches the kubelet API).
+  - apiGroups: [""]
+    resources: [nodes/proxy]
+    verbs: [get]
+  {{- end }}
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes, pods]
+    verbs: [get, list]
+  {{- if .Values.cluster.inCluster.rbac.calico }}
+  # Calico host-firewall rules, used for the public-exposure check.
+  - apiGroups: [crd.projectcalico.org]
+    resources: [globalnetworkpolicies, networkpolicies]
+    verbs: [get, list]
+  {{- end }}
+  - nonResourceURLs: [/version, /healthz]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "helm-chart.fullname" . }}-reader
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "helm-chart.fullname" . }}-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "helm-chart.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

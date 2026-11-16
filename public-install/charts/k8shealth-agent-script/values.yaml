@@ -1,0 +1,3 @@
+# Namespace the source ConfigMap lives in (the Kyverno policy clones it into each workload namespace).
+# Set by install.sh to the manager's namespace.
+namespace: k8shealth

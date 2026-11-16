@@ -1,0 +1,35 @@
+{{- if .Values.tunnelService.enabled }}
+---
+# Separate NodePort / LoadBalancer service for WireGuard UDP 51820.
+# Needed because the main service is headless (clusterIP: None) and cannot expose UDP externally.
+# Set tunnelService.enabled: true and configure tunnelService.type + tunnelService.nodePort in values.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "helm-chart.fullname" . }}-tunnel
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+  {{- with .Values.tunnelService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.tunnelService.type | default "NodePort" }}
+  {{- with .Values.tunnelService.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "helm-chart.selectorLabels" . | nindent 4 }}
+    {{- if .Values.mysql.enabled }}
+    app.kubernetes.io/component: manager
+    {{- end }}
+  ports:
+    - name: wg
+      port: 51820
+      targetPort: 51820
+      protocol: UDP
+      {{- if and (eq (.Values.tunnelService.type | default "NodePort") "NodePort") .Values.tunnelService.nodePort }}
+      nodePort: {{ .Values.tunnelService.nodePort }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "helm-chart.fullname" . }}
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+spec:
+  {{- if eq (toString .Values.service.clusterIP) "None" }}
+  clusterIP: None
+  {{- else if .Values.service.clusterIP }}
+  clusterIP: {{ .Values.service.clusterIP }}
+  {{- else if .Values.service.type }}
+  type: {{ .Values.service.type }}
+  {{- else }}
+  type: ClusterIP
+  {{- end }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 51820
+      targetPort: 51820
+      protocol: UDP
+      name: wg
+  selector:
+    {{- include "helm-chart.selectorLabels" . | nindent 4 }}
+    {{- if .Values.mysql.enabled }}
+    app.kubernetes.io/component: manager
+    {{- end }}

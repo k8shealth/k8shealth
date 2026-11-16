@@ -1,0 +1,31 @@
+{{- if .Values.serviceAccount.create }}
+---
+# Hazelcast K8s discovery RBAC
+# Allows health-manager pods to list/get pods and endpoints in their namespace
+# so Hazelcast can discover peer pods and form a cluster automatically.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "helm-chart.fullname" . }}-hazelcast
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "endpoints", "services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "helm-chart.fullname" . }}-hazelcast
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "helm-chart.fullname" . }}-hazelcast
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "helm-chart.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,230 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/k8shealth/health-manager
+  pullPolicy: IfNotPresent
+  tag: ""   # empty = the chart's appVersion, which the release pipeline stamps with the released version
+
+imagePullSecrets: []   # the images are public; add a pull secret here only for a private mirror
+
+nameOverride: "health-manager"
+fullnameOverride: "health-manager"
+
+autoscaling:
+  enabled: false
+
+# ── Rolling update strategy: never kill the old pod before the new one is ready ──────────────
+# maxUnavailable: 0 ensures zero-downtime deploys — new pod must pass readiness before old drains.
+# maxSurge: 1     allows one extra pod during rollout (N+1 temporarily).
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# ── Pod Disruption Budget: K8s won't evict both pods simultaneously (node drain, upgrades) ───
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ── Pod anti-affinity: prefer placing replicas on different nodes ─────────────────────────────
+# "preferred" (not required) so scheduling still works on single-node clusters.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: health-manager
+          topologyKey: kubernetes.io/hostname
+
+podSecurityContext: {}
+
+tunnel:
+  forwarding:
+    # true: privileged init container sets net.ipv4.ip_forward=1 (needs a namespace that admits one privileged
+    # container). false: for clusters with strict Pod Security; the tunnel then runs manager-only.
+    enabled: true
+    image: busybox:1.36
+# Built-in WireGuard tunnel server. The manager container is NEVER privileged: NET_ADMIN only.
+# IP forwarding (needed so phones can reach the dashboard on its normal https hostname through the tunnel)
+# is switched on by a tiny privileged init container that exits right away (see tunnel.forwarding below).
+# The manager detects forwarding automatically: forwarding on  -> full-tunnel config (real https hostname,
+# normal SSO login); forwarding off -> manager-only config (10.100.0.1:8080). Override with env
+# WG_CLIENT_ALLOWED_IPS.
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_ADMIN
+
+# iotop needs taskstats netlink + kernel.task_delayacct=1 on worker nodes (see /proc/sys/kernel/task_delayacct).
+# Adds SYS_ADMIN only if true; rebuild image so iotop-c/sysstat are present (Dockerfile). Prefer pidstat -d if iotop fails.
+debugIotop: false
+
+serviceAccount:
+  create: true
+  name: "health-manager"
+
+service:
+  clusterIP: None   # ✅ headless
+  port: 80
+  targetPort: 8080
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+
+ingress:
+  enabled: true
+  annotations:
+    # Sticky sessions: keeps browser users pinned to the same pod so HTTP sessions are
+    # preserved across replicas WITHOUT Spring Session JDBC. Spring Session was removed
+    # because its SessionRepositoryFilter wraps requests in a way that breaks Spring
+    # Security's MvcRequestMatcher for agent API paths (causes 302 redirect on callbacks).
+    # Health-check data sharing across replicas is handled by Hazelcast IMap.
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+    nginx.ingress.kubernetes.io/session-cookie-name: "HMROUTE"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "3600"
+    nginx.ingress.kubernetes.io/session-cookie-path: "/"
+
+publicIngress:
+  enabled: false
+  # When enabled, exposes ONLY the push monitor signal endpoints (/api/push/{ping,ok,fail}/{token}) to the public internet.
+  # The token in the URL is the sole authenticator — no IP whitelisting required.
+  # Enable in your cluster's values-prod.yaml and set the host to match your public hostname.
+  # hosts:
+  #   - host: "k8shealth-ping.example.com"
+  #     paths:
+  #       - path: /api/push/
+  #         pathType: Prefix
+
+# Database and other env: use extraEnv (literal) and/or envFrom (secret with SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD)
+# Parent / child / multi-cluster: Settings → Cluster Configuration → Cluster topology (DB). No extra env for that.
+# Optional: add Google sign-in domain allowlist via extraEnv, e.g.
+#   - name: HEALTH_OAUTH2_GOOGLE_ALLOWED_EMAIL_DOMAINS
+#     value: "example.com,example.org"
+# Extra labels on the manager pods (e.g. azure.workload.identity/use: "true" for Azure workload identity).
+podLabels: {}
+
+# The Hazelcast K8s discovery namespace (HEALTH_HAZELCAST_KUBERNETES_NAMESPACE) is injected by templates/deployment.yaml
+# from the pod's own namespace. Do not repeat it here: duplicate env names make helm upgrade fail to patch.
+extraEnv: []
+envFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# Probes (in templates/deployment.yaml defaults): startupProbe gates until the JVM listens;
+# readiness uses initialDelaySeconds: 0 so Rancher marks Ready soon after the port is open.
+# Override startupProbe / livenessProbe / readinessProbe in this file if needed.
+
+resources:
+  requests:
+    memory: "768Mi"
+    cpu: "200m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+# Tunnel NodePort service — exposes WireGuard UDP 51820 externally so phones can connect.
+# Enable this in your cluster's values file, then set the endpoint in the manager UI.
+tunnelService:
+  enabled: false
+  type: NodePort   # or LoadBalancer if your cloud provider supports UDP LBs
+  nodePort: null   # leave null to let Kubernetes assign, or set e.g. 31820
+  # Cloud load balancer settings (type: LoadBalancer). AWS needs an NLB for UDP, e.g.
+  #   annotations:
+  #     service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  #     # a UDP-only NLB cannot health-check the UDP port, so use kube-proxy's health endpoint:
+  #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: http
+  #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "10256"
+  #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: /healthz
+  # Then set WG_ENDPOINT (extraEnv) to <load balancer DNS>:51820.
+  annotations: {}
+  loadBalancerSourceRanges: []
+
+# WireGuard tunnel is configured entirely from the manager UI (Settings → Secure tunnel).
+# No values needed here. The server keypair is auto-generated on first boot.
+# To expose the tunnel externally, add a separate UDP 51820 LoadBalancer/NodePort service
+# in your cluster, then enter its public IP:51820 as the endpoint in the UI.
+
+# ---------------------------------------------------------------------------------------------
+# Quick start (plug and play): `helm install k8shealth ./helm-chart --set mysql.enabled=true`
+# Everything below is OFF by default, so existing installs that pass DB settings through
+# envFrom/extraEnv are not affected. Passwords are generated automatically and kept on upgrade.
+# ---------------------------------------------------------------------------------------------
+mysql:
+  enabled: false            # true = deploy a small single-pod MySQL next to the manager
+  image:
+    repository: mysql
+    tag: "8.4"
+    pullPolicy: IfNotPresent
+  waitImage: busybox:1.36   # init container that waits for MySQL before the manager starts
+  persistence:
+    enabled: true           # PVC survives helm uninstall (StatefulSet claims are kept)
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests: { memory: 512Mi, cpu: 100m }
+    limits: { memory: 1Gi }
+
+# Use your own MySQL (RDS, Cloud SQL, existing server). Ignored when mysql.enabled=true.
+externalDatabase:
+  url: ""                   # e.g. jdbc:mysql://db.example.com:3306/healthmanager?useSSL=true&serverTimezone=UTC
+  username: health
+  password: ""              # or point to an existing secret instead:
+  existingSecret: ""
+  existingSecretKey: password
+
+# First admin account (created only when the manager has no users yet). The password is generated
+# on install; read it with:  kubectl get secret <release>-admin -o jsonpath='{.data.password}' | base64 -d
+admin:
+  password: ""              # optional fixed password (min 12 chars)
+  existingSecret: ""
+  existingSecretKey: password
+
+# ---------------------------------------------------------------------------------------------
+# Self-monitoring: every manager pod carries a health-agent sidecar with a ready-made check, so a new
+# install already shows its own manager pods (and nothing else) on the dashboard.
+# ---------------------------------------------------------------------------------------------
+selfMonitor:
+  enabled: false            # install.sh turns this on; existing deployments are not changed
+  image:
+    repository: ghcr.io/k8shealth/health-agent
+    tag: ""   # empty = the chart's appVersion (agent and manager are released with the same version)
+    pullPolicy: IfNotPresent
+  # Same format as the k8shealth.io/health-agent-checks annotation.
+  checks: '[{"name":"Web UI","kind":"http","value":{"url":"http://localhost:8080/login","statusCode":"200"}}]'
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 500m, memory: 128Mi }
+
+# ---------------------------------------------------------------------------------------------
+# Cluster access (plug and play): the manager registers the cluster it runs in by itself, using this
+# release's service account, with read-only RBAC created below. Set enabled=false to configure a cluster by
+# hand in Settings (Rancher, a remote cluster, your own token).
+# ---------------------------------------------------------------------------------------------
+cluster:
+  name: ""                  # shown in the UI; defaults to the release name
+  inCluster:
+    enabled: false          # install.sh turns this on; existing deployments are not changed
+    namespaces: ""          # comma-separated namespaces to watch; empty = all (system namespaces are never offered for onboarding)
+    rbac:
+      create: true          # ClusterRole + binding, read-only (get/list/watch). false = bring your own
+      podLogs: true         # pods/log get: needed by the log viewer
+      nodeProxy: false      # nodes/proxy get: kubelet disk statistics only; broad, so off by default
+      calico: false         # read Calico firewall rules for the public-exposure check
+
+# First-run "Get started" card in the UI. Off for existing deployments; install.sh turns it on for new installs.
+onboarding:
+  enabled: false
+
+# Label/annotation prefix used by the agent injection policy (install/kyverno). Must match healthAgentSidecar.domain there.
+agent:
+  domain: k8shealth.io

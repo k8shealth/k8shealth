@@ -1,0 +1,205 @@
+<!-- HTML -->
+<!DOCTYPE html>
+<html class="h-full dark" data-kt-theme="true" data-kt-theme-mode="dark" dir="ltr" lang="en">
+<head>
+    <title>Status</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="/assets/vendors/apexcharts/apexcharts.css" rel="stylesheet"/>
+    <link href="/assets/vendors/keenicons/styles.bundle.css" rel="stylesheet"/>
+    <link href="/assets/css/styles.css" rel="stylesheet"/>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: auto;
+        }
+        .status-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            width: 100%;
+        }
+        .status-header {
+            flex-shrink: 0;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .status-content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .kt-card {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            border-radius: 0;
+            border: none;
+        }
+        .kt-card-header {
+            flex-shrink: 0;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .kt-card-table {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 0;
+        }
+        .kt-scrollable-x-auto {
+            min-height: min-content;
+            width: 100%;
+            padding: 0 1rem 1rem 1rem;
+        }
+        .kt-table {
+            width: 100%;
+            margin: 0;
+        }
+        .kt-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+        .antialiased { -webkit-font-smoothing: antialiased; }
+        .flex { display: flex; }
+        .h-full { height: 100%; }
+        .text-base { font-size: 1rem; line-height: 1.5rem; }
+        .text-foreground { color: #e2e8f0; }
+        .bg-background { background-color: #0f172a; }
+        .dark .text-foreground { color: #e2e8f0; }
+        .flex-col { flex-direction: column; }
+        .justify-center { justify-content: center; }
+        .gap-2 { gap: 0.5rem; }
+        .text-xl { font-size: 1.25rem; }
+        .font-medium { font-weight: 500; }
+        .leading-none { line-height: 1; }
+        .text-mono { font-family: ui-monospace, monospace; }
+        .items-center { align-items: center; }
+        .text-sm { font-size: 0.875rem; }
+        .font-normal { font-weight: 400; }
+        .text-secondary-foreground { color: rgba(255,255,255,0.7); }
+        .kt-card-grid { }
+        .kt-card-title { margin: 0; font-size: 1rem; font-weight: 600; }
+        .kt-table-border { border-collapse: collapse; }
+        .kt-table-border th, .kt-table-border td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .min-w-\[100px\] { min-width: 100px; }
+        .min-w-\[70px\] { min-width: 70px; }
+        .min-w-\[120px\] { min-width: 120px; }
+        .min-w-\[150px\] { min-width: 150px; }
+        .min-w-\[60px\] { min-width: 60px; }
+        .min-w-\[90px\] { min-width: 90px; }
+        .kt-link { color: #38bdf8; }
+        .kt-link-underlined { text-decoration: underline; }
+        .kt-link-dashed { text-decoration-style: dashed; }
+        .kt-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.875rem; }
+        .kt-badge-sm { font-size: 0.75rem; }
+        .kt-badge-outline { background: transparent; }
+        .kt-badge-success { border: 1px solid #22c55e; color: #22c55e; }
+        .kt-badge-destructive { border: 1px solid #ef4444; color: #ef4444; }
+        .status-pod-group { margin-bottom: 1.5rem; }
+        .status-pod-header { font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body class="antialiased flex h-full text-base text-foreground bg-background dark">
+    <!-- Theme Mode - Always Dark -->
+    <script>
+        document.documentElement.classList.add('dark');
+        document.documentElement.setAttribute('data-kt-theme-mode', 'dark');
+        try { localStorage.setItem('kt-theme', 'dark'); } catch (e) {}
+    </script>
+    <!-- End of Theme Mode -->
+
+    <!-- Status Container -->
+    <div class="status-container">
+        <!-- Header -->
+        <div class="status-header">
+            <div class="flex flex-col justify-center gap-2">
+                <h1 class="text-xl font-medium leading-none text-mono">{{.PodName}}</h1>
+                <div class="flex items-center gap-2 text-sm font-normal text-secondary-foreground">
+                    Health Check Status
+                </div>
+            </div>
+        </div>
+        <!-- End of Header -->
+
+        <!-- Content -->
+        <div class="status-content">
+            <div class="kt-card kt-card-grid">
+                <div class="kt-card-header">
+                    <h3 class="kt-card-title">Health Check Results</h3>
+                </div>
+                <div class="status-pods-summary" style="padding: 0 1.5rem 0.5rem; font-size: 0.8125rem; color: rgba(255,255,255,0.65);">Pods by deployment: {{.PodsSummary}} — {{.TotalPods}} pod{{if ne .TotalPods 1}}s{{end}} total</div>
+                <div class="kt-card-table">
+                    <div class="kt-scrollable-x-auto" style="padding: 0 1rem 1rem 1rem;">
+                        {{range .GroupedByPodOrdered}}
+                        <div class="status-pod-group" style="margin-bottom: 1.5rem;">
+                            <div class="status-pod-header" style="font-weight: 600; margin-bottom: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.2); display:flex; align-items:center; flex-wrap:wrap; gap:0.4rem;">
+                                <span>Pod: <span style="color: #94a3b8;">{{.Pod}}</span></span>
+                                {{if .Deployment}}<span style="color: rgba(255,255,255,0.5); font-weight: 500;">&nbsp; — &nbsp; Deployment: {{.Deployment}}</span>{{end}}
+                                {{if .Team}}
+                                    {{if .TeamColor}}
+                                    <span style="display:inline-flex;align-items:center;gap:0.3rem;background:{{.TeamColor}}1a;border:1px solid {{.TeamColor}}66;border-radius:4px;padding:0.1rem 0.45rem;font-size:0.75rem;color:{{.TeamColor}};font-weight:600;margin-left:0.25rem;">
+                                        <span style="width:8px;height:8px;border-radius:50%;background:{{.TeamColor}};display:inline-block;flex-shrink:0;"></span>
+                                        {{.Team}}
+                                    </span>
+                                    {{else}}
+                                    <span style="background:rgba(99,179,237,0.15);border:1px solid rgba(99,179,237,0.3);border-radius:4px;padding:0.1rem 0.4rem;font-size:0.75rem;color:#93c5fd;margin-left:0.25rem;">{{.Team}}</span>
+                                    {{end}}
+                                {{end}}
+                                {{if .Uptime}}<span style="color: rgba(255,255,255,0.5); font-weight: 500;">&nbsp; — &nbsp; Uptime: {{.Uptime}}</span>{{end}}
+                            </div>
+                            <table class="kt-table kt-table-border" style="width: 100%; margin-bottom: 0;">
+                                <thead>
+                                    <tr>
+                                        <th class="min-w-[100px]">Name</th>
+                                        <th class="min-w-[70px]">Type</th>
+                                        <th class="min-w-[120px]">filePath</th>
+                                        <th class="min-w-[150px]">url</th>
+                                        <th>Response</th>
+                                        <th class="min-w-[60px]">Code</th>
+                                        <th class="min-w-[90px]">Status</th>
+                                        <th class="min-w-[90px]">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .Rows}}
+                                    <tr>
+                                        <td class="text-foreground font-normal">{{.Name}}</td>
+                                        <td class="text-foreground font-normal">{{.Type}}</td>
+                                        <td class="text-foreground font-normal">{{.FilePath}}</td>
+                                        <td class="text-foreground font-normal">
+                                            {{if and .URL (eq .Type "http")}}<a href="{{.URL}}" class="kt-link kt-link-underlined kt-link-dashed" target="_blank">{{.URL}}</a>{{else}}{{if .URL}}{{.URL}}{{else}}-{{end}}{{end}}
+                                        </td>
+                                        <td class="text-foreground font-normal">{{.Response}}</td>
+                                        <td class="text-foreground font-normal">{{.Code}}</td>
+                                        <td>
+                                            {{if .Passed}}<span class="kt-badge kt-badge-sm kt-badge-outline kt-badge-success">Pass</span>{{else}}<span class="kt-badge kt-badge-sm kt-badge-outline kt-badge-destructive">Fail</span>{{end}}
+                                            {{if .Inactive}}<span class="kt-badge kt-badge-sm kt-badge-outline" style="margin-left: 0.25rem;">Inactive</span>{{end}}
+                                        </td>
+                                        <td class="text-foreground font-normal">{{.TimeAgo}}</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                        {{end}}
+                        {{if not .GroupedByPodOrdered}}<p style="color: rgba(255,255,255,0.6);">No health checks reported.</p>{{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End of Content -->
+    </div>
+    <!-- End of Status Container -->
+    <script src="/assets/js/core.bundle.js"></script>
+    <script src="/assets/vendors/ktui/ktui.min.js"></script>
+    <script src="/assets/vendors/apexcharts/apexcharts.min.js"></script>
+    <script src="/assets/js/layouts/demo1.js"></script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+[
+  {
+    "id": "base-image-env",
+    "kind": "env",
+    "names": ["JAVA_VERSION", "PHP_VERSION", "NODE_VERSION", "PYTHON_VERSION", "GOLANG_VERSION", "RUBY_VERSION", "WORDPRESS_VERSION", "TOMCAT_VERSION", "NGINX_VERSION", "HTTPD_VERSION", "REDIS_VERSION"],
+    "extract": [
+      { "product": "java",               "regex": "(?m)^JAVA_VERSION=(?:jdk-?)?(\\d+(?:\\.\\d+){0,3}(?:_\\d+|u\\d+)?)", "confidence": "probable" },
+      { "product": "php",                "regex": "(?m)^PHP_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "nodejs",             "regex": "(?m)^NODE_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "python",             "regex": "(?m)^PYTHON_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "go",                 "regex": "(?m)^GOLANG_VERSION=(\\d+\\.\\d+(?:\\.\\d+)?)", "confidence": "probable" },
+      { "product": "ruby",               "regex": "(?m)^RUBY_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "wordpress",          "regex": "(?m)^WORDPRESS_VERSION=(\\d+\\.\\d+(?:\\.\\d+)?)", "confidence": "probable" },
+      { "product": "tomcat",             "regex": "(?m)^TOMCAT_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "nginx",              "regex": "(?m)^NGINX_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "apache-http-server", "regex": "(?m)^HTTPD_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" },
+      { "product": "redis",              "regex": "(?m)^REDIS_VERSION=(\\d+\\.\\d+\\.\\d+)", "confidence": "probable" }
+    ]
+  },
+  {
+    "id": "os-release",
+    "kind": "file",
+    "paths": ["/etc/os-release", "/usr/lib/os-release"],
+    "extract": [
+      { "product": "debian",       "requires": "(?m)^ID=\"?debian\"?\\s*$",     "regex": "(?m)^VERSION_ID=\"?(\\d+(?:\\.\\d+)?)" },
+      { "product": "ubuntu",       "requires": "(?m)^ID=\"?ubuntu\"?\\s*$",     "regex": "(?m)^VERSION_ID=\"?(\\d+\\.\\d+)" },
+      { "product": "alpine-linux", "requires": "(?m)^ID=\"?alpine\"?\\s*$",     "regex": "(?m)^VERSION_ID=\"?(\\d+\\.\\d+(?:\\.\\d+)?)" },
+      { "product": "rocky-linux",  "requires": "(?m)^ID=\"?rocky\"?\\s*$",      "regex": "(?m)^VERSION_ID=\"?(\\d+(?:\\.\\d+)?)" },
+      { "product": "almalinux",    "requires": "(?m)^ID=\"?almalinux\"?\\s*$",  "regex": "(?m)^VERSION_ID=\"?(\\d+(?:\\.\\d+)?)" },
+      { "product": "amazon-linux", "requires": "(?m)^ID=\"?amzn\"?\\s*$",       "regex": "(?m)^VERSION_ID=\"?(\\d+(?:\\.\\d+)?)" }
+    ]
+  },
+  {
+    "id": "java-release",
+    "kind": "file",
+    "paths": ["$ENV:JAVA_HOME/release", "$ENV:JAVA_HOME/../release", "/opt/java/openjdk/release", "/usr/lib/jvm/default-jvm/release"],
+    "extract": [
+      { "product": "java", "regex": "(?m)^JAVA_VERSION=\"(\\d+(?:\\.\\d+){0,3}(?:_\\d+)?)", "confidence": "exact" }
+    ]
+  },
+  {
+    "id": "wordpress-core",
+    "kind": "file",
+    "paths": ["/var/www/html/wp-includes/version.php", "/var/www/html/wordpress/wp-includes/version.php", "/var/www/wordpress/wp-includes/version.php", "/usr/src/wordpress/wp-includes/version.php"],
+    "extract": [
+      { "product": "wordpress", "regex": "\\$wp_version\\s*=\\s*'(\\d+\\.\\d+(?:\\.\\d+)?)'" }
+    ]
+  },
+  {
+    "id": "tomcat-release",
+    "kind": "file",
+    "paths": ["$ENV:CATALINA_HOME/RELEASE-NOTES", "/usr/local/tomcat/RELEASE-NOTES"],
+    "extract": [
+      { "product": "tomcat", "regex": "Apache Tomcat Version (\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "httpd-version",
+    "kind": "cmd",
+    "paths": ["httpd", "apache2", "/usr/local/apache2/bin/httpd"],
+    "arg": "-v",
+    "extract": [
+      { "product": "apache-http-server", "regex": "Apache/(\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "php-version",
+    "kind": "cmd",
+    "paths": ["php", "php-fpm", "php-fpm8", "/usr/local/bin/php"],
+    "arg": "-v",
+    "extract": [
+      { "product": "php", "regex": "PHP (\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "nginx-version",
+    "kind": "cmd",
+    "paths": ["nginx"],
+    "arg": "-v",
+    "extract": [
+      { "product": "nginx", "regex": "nginx/(\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "jar-manifest",
+    "kind": "jar",
+    "jarMode": "read",
+    "jarEntry": "META-INF/MANIFEST.MF",
+    "extract": [
+      { "product": "spring-boot", "regex": "(?m)^Spring-Boot-Version:\\s*(\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "jar-libs",
+    "kind": "jar",
+    "jarMode": "list",
+    "jarEntry": "BOOT-INF/lib/",
+    "extract": [
+      { "product": "spring-framework", "regex": "(?m)spring-core-(\\d+\\.\\d+\\.\\d+)\\.jar" },
+      { "product": "tomcat",           "regex": "(?m)tomcat-embed-core-(\\d+\\.\\d+\\.\\d+)\\.jar" },
+      { "product": "jetty",            "regex": "(?m)jetty-server-(\\d+\\.\\d+\\.\\d+)\\.jar" },
+      { "product": "log4j",            "regex": "(?m)log4j-core-(\\d+\\.\\d+\\.\\d+)\\.jar" },
+      { "product": "kotlin",           "regex": "(?m)kotlin-stdlib-(\\d+\\.\\d+\\.\\d+)\\.jar" },
+      { "product": "hibernate-orm",    "regex": "(?m)hibernate-core-(\\d+\\.\\d+\\.\\d+)" }
+    ]
+  },
+  {
+    "id": "env-versions",
+    "kind": "envall"
+  }
+]

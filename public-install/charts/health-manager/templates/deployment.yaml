@@ -1,0 +1,261 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "helm-chart.fullname" . }}
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "helm-chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "helm-chart.selectorLabels" . | nindent 8 }}
+        {{- if .Values.mysql.enabled }}
+        app.kubernetes.io/component: manager
+        {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "helm-chart.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if or .Values.mysql.enabled .Values.tunnel.forwarding.enabled }}
+      initContainers:
+        {{- if .Values.tunnel.forwarding.enabled }}
+        # The ONLY privileged part of the tunnel setup. Runs for about a second, sets IP forwarding for the pod's
+        # network namespace (shared with the manager container) and exits. The manager itself stays unprivileged
+        # (NET_ADMIN only). Disable with tunnel.forwarding.enabled=false on clusters that forbid privileged
+        # containers; the tunnel then falls back to manager-only mode.
+        - name: enable-ip-forwarding
+          image: "{{ .Values.tunnel.forwarding.image }}"
+          command: ["sh", "-c", "sysctl -w net.ipv4.ip_forward=1 && cat /proc/sys/net/ipv4/ip_forward"]
+          securityContext:
+            privileged: true
+          resources:
+            limits:
+              cpu: 50m
+              memory: 16Mi
+        {{- end }}
+        {{- if .Values.mysql.enabled }}
+        - name: wait-for-mysql
+          image: "{{ .Values.mysql.waitImage }}"
+          command: ["sh", "-c", "until nc -z {{ include "helm-chart.fullname" . }}-mysql 3306; do echo waiting for mysql; sleep 3; done"]
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- if .Values.debugIotop }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - SYS_ADMIN
+            {{- else }}
+            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort | default 8080 }}
+              protocol: TCP
+            - name: wg
+              containerPort: 51820
+              protocol: UDP
+            - name: hazelcast
+              containerPort: 5701
+              protocol: TCP
+          {{- if .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- else }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 36
+          {{- end }}
+          livenessProbe:
+            {{- if .Values.livenessProbe }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+            {{- else }}
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 5
+            {{- end }}
+          readinessProbe:
+            {{- if .Values.readinessProbe }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            {{- else }}
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 1
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            # Downward API: inject the pod's own namespace so Hazelcast K8s discovery always
+            # looks in the correct namespace regardless of where the chart is deployed.
+            - name: HEALTH_HAZELCAST_KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # Downward API: the pod's own address. Hazelcast binds to exactly this address, so clustering works on any
+            # pod CIDR (AKS, GKE, EKS, k3s) instead of a fixed list of ranges.
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            # Downward API: inject the worker node name so the dashboard can show friendly labels.
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if .Values.mysql.enabled }}
+            # Quick-start: bundled MySQL (see templates/mysql.yaml). extraEnv below can still override.
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://{{ include "helm-chart.fullname" . }}-mysql:3306/healthmanager?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "health"
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-chart.fullname" . }}-db
+                  key: app-password
+            {{- else if .Values.externalDatabase.url }}
+            - name: SPRING_DATASOURCE_URL
+              value: {{ .Values.externalDatabase.url | quote }}
+            - name: SPRING_DATASOURCE_USERNAME
+              value: {{ .Values.externalDatabase.username | quote }}
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-db" (include "helm-chart.fullname" .)) .Values.externalDatabase.existingSecret }}
+                  key: {{ default "app-password" .Values.externalDatabase.existingSecretKey }}
+            {{- end }}
+            {{- if or .Values.mysql.enabled .Values.externalDatabase.url .Values.admin.existingSecret }}
+            # First-install admin password (only used when the users table is empty).
+            - name: APP_ADMIN_INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-admin" (include "helm-chart.fullname" .)) .Values.admin.existingSecret }}
+                  key: {{ default "password" .Values.admin.existingSecretKey }}
+            {{- end }}
+            {{- if or .Values.mysql.enabled .Values.externalDatabase.url }}
+            # Signing / encryption keys (templates/db-secrets.yaml). optional: an install that predates the secret keeps
+            # running on the built-in default key instead of failing to start.
+            - name: HEALTH_SECURITY_MFA_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-chart.fullname" . }}-security
+                  key: mfa-key
+                  optional: true
+            - name: HEALTH_SECURITY_REMEMBER_ME_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-chart.fullname" . }}-security
+                  key: remember-me-key
+                  optional: true
+            {{- end }}
+            # Label prefix of the installed injection policy (<domain>/enabled). The onboarding card builds its command from it.
+            - name: HM_LABEL_DOMAIN
+              value: {{ .Values.agent.domain | quote }}
+            {{- if .Values.onboarding.enabled }}
+            # First-run "Get started" card: new installs only (install.sh sets it).
+            - name: HM_ONBOARDING
+              value: "true"
+            {{- end }}
+            {{- if .Values.cluster.inCluster.enabled }}
+            # Register the cluster this manager runs in on first start, using the pod's own service account.
+            - name: HM_INCLUSTER_AUTOREGISTER
+              value: "true"
+            - name: HM_CLUSTER_NAME
+              value: {{ .Values.cluster.name | default .Release.Name | quote }}
+            - name: HM_TARGET_NAMESPACE
+              value: {{ .Values.cluster.inCluster.namespaces | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.selfMonitor.enabled }}
+        # The manager monitors itself from the first boot: one agent sidecar per manager pod with a ready-made check.
+        # The agent talks to the manager over localhost, so it needs no Service, port mapping or Kyverno policy.
+        - name: zz-health-agent
+          image: "{{ .Values.selfMonitor.image.repository }}:{{ .Values.selfMonitor.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.selfMonitor.image.pullPolicy }}
+          ports:
+            - name: agent-http
+              containerPort: 8082
+          env:
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - name: NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            - name: CONTAINER
+              value: {{ .Chart.Name | quote }}
+            - name: MANAGER_URL
+              value: "http://127.0.0.1:{{ .Values.service.targetPort | default 8080 }}"
+            - name: HEALTH_AGENT_MANAGER_URL
+              value: "http://127.0.0.1:{{ .Values.service.targetPort | default 8080 }}"
+            - name: AGENT_HTTP_PORT
+              value: "8082"
+            - name: HEALTH_AGENT_LISTEN_PORT
+              value: "8082"
+            - name: HC_CHECKS_JSON
+              value: {{ .Values.selfMonitor.checks | quote }}
+            - name: HEALTH_AGENT_HC_CHECKS_JSON
+              value: {{ .Values.selfMonitor.checks | quote }}
+          resources:
+            {{- toYaml .Values.selfMonitor.resources | nindent 12 }}
+        {{- end }}
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

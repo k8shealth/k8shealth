@@ -1,0 +1,12 @@
+# Lets Kyverno's background controller copy the agent script ConfigMap into workload namespaces
+# (rule copy-health-script-configmap). Aggregated into the controller's role by label.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8shealth-kyverno-configmaps
+  labels:
+    rbac.kyverno.io/aggregate-to-background-controller: "true"
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, update, delete]

@@ -43,6 +43,7 @@ Supported check kinds: `http`, `mysql`, `file`.
 
 - `K8SH_MANAGER_IMAGE`, `K8SH_AGENT_IMAGE` - use your own mirror of the images
 - `K8SH_MANAGER_CHART` - path to a different manager chart
+- `K8SH_INGRESS_HOST` - expose the dashboard through an Ingress (a hostname, or `any`); optional `K8SH_INGRESS_CLASS` (default `nginx`) and `K8SH_INGRESS_ALLOW` (comma-separated source CIDRs, ingress-nginx; the installer adds the cluster pod network so secure-tunnel sign-in is not blocked, override with `K8SH_POD_CIDR`). Off by default: use `kubectl port-forward`, and put the dashboard behind your own authentication/TLS before exposing it
 
 ## License
 

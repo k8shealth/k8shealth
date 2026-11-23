@@ -225,6 +225,14 @@ cluster:
 onboarding:
   enabled: false
 
+# Way back in for an administrator who lost both the authenticator and the recovery codes, with no other
+# administrator to reset it. Set both for one deployment (helm upgrade --reuse-values --set recovery.mfaUser=alice
+# --set recovery.mfaToken=$(date +%s)): on start the account's two-step verification is switched off and a one-time
+# enrolment code for it is printed in the manager log. The same token never fires twice, so it may stay set.
+recovery:
+  mfaUser: ""     # username or e-mail of the locked-out account
+  mfaToken: ""    # any new value to run the recovery once
+
 # Label/annotation prefix used by the agent injection policy (install/kyverno). Must match healthAgentSidecar.domain there.
 agent:
   domain: k8shealth.io

@@ -184,6 +184,12 @@ spec:
                   key: remember-me-key
                   optional: true
             {{- end }}
+            {{- if .Values.tunnelService.enabled }}
+            # The Service that publishes the tunnel. The manager reads its load balancer address / NodePort from the
+            # cluster and reports it to k8shealth.io, so the tunnel address never has to be typed anywhere.
+            - name: HM_TUNNEL_SERVICE
+              value: "{{ .Release.Namespace }}/{{ include "helm-chart.fullname" . }}-tunnel"
+            {{- end }}
             # Label prefix of the installed injection policy (<domain>/enabled). The onboarding card builds its command from it.
             - name: HM_LABEL_DOMAIN
               value: {{ .Values.agent.domain | quote }}
@@ -191,6 +197,13 @@ spec:
             # First-run "Get started" card: new installs only (install.sh sets it).
             - name: HM_ONBOARDING
               value: "true"
+            {{- end }}
+            {{- if and .Values.recovery.mfaUser .Values.recovery.mfaToken }}
+            # Two-step lockout recovery (one shot per token, see values.yaml).
+            - name: HM_MFA_RECOVER_USER
+              value: {{ .Values.recovery.mfaUser | quote }}
+            - name: HM_MFA_RECOVER_TOKEN
+              value: {{ .Values.recovery.mfaToken | quote }}
             {{- end }}
             {{- if .Values.cluster.inCluster.enabled }}
             # Register the cluster this manager runs in on first start, using the pod's own service account.

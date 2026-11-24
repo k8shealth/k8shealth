@@ -1,0 +1,29 @@
+name: Notify Slack of a release
+
+# Posts one message to the releases channel when a GitHub Release is published.
+# Needs only the repository secret SLACK_RELEASES_WEBHOOK (a Slack incoming webhook for that one channel).
+# No repository permissions beyond reading the event: the job cannot change code, issues or workflows.
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        env:
+          WEBHOOK: ${{ secrets.SLACK_RELEASES_WEBHOOK }}
+          NAME: ${{ github.event.release.name }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          # Event text is passed through env + jq, never interpolated into the shell, so a release title cannot inject commands.
+          [ -n "$WEBHOOK" ] || { echo "SLACK_RELEASES_WEBHOOK is not set; nothing to notify"; exit 0; }
+          label="${NAME:-$TAG}"
+          [ "$PRERELEASE" = "true" ] && label="$label (pre-release)"
+          jq -n --arg t ":rocket: *$label* is out. <$URL|Release notes and downloads>" '{text: $t}' \
+            | curl -sf -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK"

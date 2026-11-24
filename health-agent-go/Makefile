@@ -5,7 +5,7 @@ LDFLAGS := -ldflags "-X github.com/fx/health-agent-go/config.Version=$(VERSION)"
 
 .PHONY: build build-linux stamp-agent-sh
 build:
-	go build $(LDFLAGS) -o health-agent-go .
+	go build -trimpath $(LDFLAGS) -o health-agent-go .
 
 # Optional: stamp ../health-agent/agent.sh before publishing script (content hash; unchanged on Go-only rebuilds).
 stamp-agent-sh:
@@ -13,7 +13,7 @@ stamp-agent-sh:
 
 # Linux binary for Docker (same as Dockerfile does)
 build-linux:
-	CGO_ENABLED=0 GOOS=linux go build $(LDFLAGS) -o health-agent-go .
+	CGO_ENABLED=0 GOOS=linux go build -trimpath $(LDFLAGS) -o health-agent-go .
 
 clean:
 	rm -f health-agent-go health-agent-go.exe

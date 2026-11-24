@@ -4,5 +4,5 @@ description: ConfigMap with health-agent.sh, copied into every namespace that ha
 
 type: application
 version: 0.2.0
-appVersion: "1.0.320"
+appVersion: "1.0.324"
 home: https://k8shealth.io

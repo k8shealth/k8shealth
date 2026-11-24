@@ -83,11 +83,8 @@ service:
 ingress:
   enabled: true
   annotations:
-    # Sticky sessions: keeps browser users pinned to the same pod so HTTP sessions are
-    # preserved across replicas WITHOUT Spring Session JDBC. Spring Session was removed
-    # because its SessionRepositoryFilter wraps requests in a way that breaks Spring
-    # Security's MvcRequestMatcher for agent API paths (causes 302 redirect on callbacks).
-    # Health-check data sharing across replicas is handled by Hazelcast IMap.
+    # Browser sessions are stored in the manager database, so any replica can serve any signed-in browser and sticky
+    # routing is NOT required for correctness. The cookie affinity below is only an optimisation (fewer session reads).
     nginx.ingress.kubernetes.io/affinity: "cookie"
     nginx.ingress.kubernetes.io/affinity-mode: "persistent"
     nginx.ingress.kubernetes.io/session-cookie-name: "HMROUTE"
@@ -138,12 +135,21 @@ tunnelService:
   enabled: false
   type: NodePort   # or LoadBalancer if your cloud provider supports UDP LBs
   nodePort: null   # leave null to let Kubernetes assign, or set e.g. 31820
+  # One client must always reach the same manager pod (a WireGuard session lives on one pod only).
+  # externalTrafficPolicy: empty = Local for a LoadBalancer, Cluster for a NodePort.
+  # sessionAffinity: empty = None for a LoadBalancer (clouds reject ClientIP there; Local already pins a client to a node),
+  # ClientIP for a NodePort.
+  externalTrafficPolicy: ""
+  sessionAffinity: ""
+  # Node port the load balancer health-checks (HTTP /healthz) when the policy is Local; only the node with a manager pod answers.
+  healthCheckNodePort: 31821
   # Cloud load balancer settings (type: LoadBalancer). AWS needs an NLB for UDP, e.g.
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-type: nlb
-  #     # a UDP-only NLB cannot health-check the UDP port, so use kube-proxy's health endpoint:
+  #     # health-check the service itself (healthCheckNodePort), NOT kube-proxy's 10256: with the Local policy only nodes
+  #     # that run a manager pod answer, so the load balancer sends UDP only there.
   #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: http
-  #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "10256"
+  #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "31821"
   #     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: /healthz
   # Then set WG_ENDPOINT (extraEnv) to <load balancer DNS>:51820.
   annotations: {}

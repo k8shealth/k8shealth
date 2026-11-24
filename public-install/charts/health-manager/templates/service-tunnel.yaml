@@ -15,6 +15,19 @@ metadata:
   {{- end }}
 spec:
   type: {{ .Values.tunnelService.type | default "NodePort" }}
+  {{- /* A WireGuard session exists only on the pod that did the handshake, so every packet of one client must reach the
+         same pod. LoadBalancer: only forward to a pod on the receiving node (the load balancer keeps a client on one
+         node). NodePort: keep the default policy (a node without a pod would otherwise drop traffic) and rely on the
+         client-IP affinity below. */}}
+  {{- $policy := .Values.tunnelService.externalTrafficPolicy | default (ternary "Local" "Cluster" (eq (.Values.tunnelService.type | default "NodePort") "LoadBalancer")) }}
+  externalTrafficPolicy: {{ $policy }}
+  {{- if eq $policy "Local" }}
+  {{- /* Fixed (not random) so the load balancer annotation can name it. */}}
+  healthCheckNodePort: {{ .Values.tunnelService.healthCheckNodePort | default 31821 }}
+  {{- end }}
+  {{- /* Cloud load balancers reject ClientIP affinity (AWS: "unsupported load balancer affinity"); the Local policy already
+         keeps a client on one node there. A NodePort has no load balancer in front, so affinity is what keeps a client on one pod. */}}
+  sessionAffinity: {{ .Values.tunnelService.sessionAffinity | default (ternary "None" "ClientIP" (eq (.Values.tunnelService.type | default "NodePort") "LoadBalancer")) }}
   {{- with .Values.tunnelService.loadBalancerSourceRanges }}
   loadBalancerSourceRanges:
     {{- toYaml . | nindent 4 }}

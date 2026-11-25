@@ -2,7 +2,23 @@
 =====================================================================
  k8shealth manager installed.
  Database : {{ if .Values.mysql.enabled }}bundled MySQL ({{ include "helm-chart.fullname" . }}-mysql, PVC {{ .Values.mysql.persistence.size }}){{ else }}external{{ end }}
- Login    : user "admin"
+{{- if .Values.onboarding.enabled }}
+{{- if .Release.IsInstall }}
+ NEXT     : sign in with k8shealth.io (in the k8shealth app or the portal). The manager then asks for this SETUP CODE:
+
+              SETUP CODE:  {{ include "helm-chart.setupCode" . }}
+
+            Single use, valid 24 hours. It proves you control this cluster. It is NOT the admin password below.
+{{- else }}
+ NEXT     : sign in with k8shealth.io (in the k8shealth app or the portal). The manager then asks for a SETUP CODE:
+              macOS / Linux : kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/component=manager --tail=-1 | grep 'SETUP CODE' | tail -n 1
+              Windows (PS)  : kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/component=manager --tail=-1 | Select-String 'SETUP CODE' | Select-Object -Last 1
+            The setup code is 12 characters (ABCD-EFGH-JKLM). It is NOT the admin password below.
+{{- end }}
+{{- end }}
+ AGENTS   : to add the agent to your workloads install the injection policy (Kyverno), then label a workload with {{ .Values.agent.domain }}/enabled=enabled:
+              helm upgrade --install k8shealth-policy oci://ghcr.io/k8shealth/charts/k8shealth-policy --namespace kyverno --create-namespace --wait --wait-for-jobs --timeout 15m
+ Login    : user "admin" (local account; not needed when you sign in with k8shealth.io)
  Password : kubectl -n {{ .Release.Namespace }} get secret {{ default (printf "%s-admin" (include "helm-chart.fullname" .)) .Values.admin.existingSecret }} -o jsonpath='{.data.password}' | base64 -d; echo
  Open it  : kubectl -n {{ .Release.Namespace }} port-forward {{ if .Values.mysql.enabled }}$(kubectl -n {{ .Release.Namespace }} get pod -l app.kubernetes.io/component=manager -o name | head -1){{ else }}deploy/{{ include "helm-chart.fullname" . }}{{ end }} 8080:{{ .Values.service.targetPort | default 8080 }}   (then http://localhost:8080)
 {{- if .Values.mysql.enabled }}

@@ -1,0 +1,111 @@
+{{- if .Values.policyAsHook }}
+# One install on an empty cluster: Kyverno is installed by this release, and the injection policy is applied afterwards
+# by a Job. (Helm cannot create a ClusterPolicy in the release that installs Kyverno's CRDs, and Kyverno refuses a policy
+# whose author lacks the rights the policy needs, which fails for admins whose rights come from a group or an EKS access
+# entry. The Job runs as its own service account with exactly those rights, so neither problem reaches the user.)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8shealth-policy-installer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8shealth-policy-installer
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["kyverno.io"]
+    resources: [clusterpolicies]
+    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+  - apiGroups: ["apps"]
+    resources: [deployments]
+    verbs: [get, list, watch]
+  # Kyverno only accepts a policy that copies ConfigMaps from an author who may do that copy.
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8shealth-policy-installer
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8shealth-policy-installer
+subjects:
+  - kind: ServiceAccount
+    name: k8shealth-policy-installer
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8shealth-policy-source
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+data:
+  policy.yaml: |-
+    {{ include "k8shealth.policy" . | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k8shealth-policy-install
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  # A new pod per attempt: the waits below run again, then the apply is retried (the admission webhook can lag a few seconds).
+  backoffLimit: 12
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      serviceAccountName: k8shealth-policy-installer
+      restartPolicy: Never
+      # The kubectl image has no shell, so each wait is its own step.
+      initContainers:
+        - name: wait-crd
+          image: {{ .Values.policyInstaller.image }}
+          args: ["wait", "--for=create", "crd/clusterpolicies.kyverno.io", "--timeout=300s"]
+        - name: wait-crd-established
+          image: {{ .Values.policyInstaller.image }}
+          args: ["wait", "--for=condition=established", "crd/clusterpolicies.kyverno.io", "--timeout=300s"]
+        - name: wait-kyverno
+          image: {{ .Values.policyInstaller.image }}
+          args: ["wait", "-A", "--for=condition=available", "deployment", "-l", "app.kubernetes.io/component=admission-controller", "--timeout=600s"]
+        - name: apply
+          image: {{ .Values.policyInstaller.image }}
+          args: ["apply", "-f", "/policy/policy.yaml"]
+          volumeMounts:
+            - {name: policy, mountPath: /policy}
+      containers:
+        # The policy name carries the agent version, so an upgrade leaves the previous one behind: remove the others.
+        - name: prune-old
+          image: {{ .Values.policyInstaller.image }}
+          args: ["delete", "clusterpolicy", "-l", "app.kubernetes.io/part-of=k8shealth", "--field-selector", "metadata.name!={{ include "k8shealth.policyName" . }}", "--ignore-not-found"]
+      volumes:
+        - name: policy
+          configMap:
+            name: k8shealth-policy-source
+{{- end }}

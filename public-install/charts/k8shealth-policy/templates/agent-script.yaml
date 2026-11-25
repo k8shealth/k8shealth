@@ -1,0 +1,15 @@
+{{- if .Values.agentScript.install }}
+# The agent script the injected sidecar runs. The policy copies this ConfigMap into every workload namespace.
+# Same content as charts/k8shealth-agent-script (kept for Argo CD installs); scripts/public-release-check.sh checks they match.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: health-agent-health-script
+  namespace: {{ .Values.healthAgentSidecar.scriptNamespace }}
+  labels:
+    app.kubernetes.io/name: k8shealth-agent-script
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  health-agent.sh: |-
+    {{ .Files.Get "files/health-agent.sh" | nindent 4 }}
+{{- end }}

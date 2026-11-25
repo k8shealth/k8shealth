@@ -48,13 +48,13 @@ func runFileCheck(pod, container string, c ResolvedCheck, reg *registry.Registry
 		Time:     time.Now().UTC(),
 		Path:     path,
 		Mode:     c.Mode,
-		Message:  fileCheckMessage(mode, passed, t),
+		Message:  FileCheckMessage(mode, passed, t),
 	})
 	return passed
 }
 
-// fileCheckMessage is the human text shown as the check's response.
-func fileCheckMessage(mode string, passed bool, t models.FileAccessTarget) string {
+// FileCheckMessage is the human text shown as the check's response.
+func FileCheckMessage(mode string, passed bool, t models.FileAccessTarget) string {
 	if passed {
 		return "File check passed"
 	}

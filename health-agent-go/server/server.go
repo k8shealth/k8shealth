@@ -181,10 +181,8 @@ func (s *Server) handleScriptCallback(w http.ResponseWriter, r *http.Request) {
 			}
 			passed := false
 			passed = models.FileAccessPassed(t.Mode, t.Readable, t.Writable)
-			message := "File check passed"
-			if !passed {
-				message = "File check failed"
-			}
+			// Same wording as the saved check ("not readable", "timed out after 5000ms", ...), so the Test button says why it failed.
+			message := health.FileCheckMessage(models.NormalizeFileMode(t.Mode), passed, t)
 			duration := t.ReadDurationMs
 			if duration <= 0 && t.WriteDurationMs > 0 {
 				duration = t.WriteDurationMs

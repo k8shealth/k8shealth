@@ -1,6 +1,6 @@
 healthAgentSidecar:
   # Full image reference injected into labelled pods.
-  image: ghcr.io/k8shealth/health-agent:1.0.324
+  image: ghcr.io/k8shealth/health-agent:1.0.328
   # Label / annotation prefix: pods labelled <domain>/enabled=enabled get the agent. The manager reports this
   # value to the UI, so the onboarding command always matches the installed policy.
   domain: k8shealth.io
@@ -16,3 +16,14 @@ kyverno:
   features:
     forceFailurePolicyIgnore:
       enabled: true
+  # The hook image defaults to a moving tag; pin it to the engine version.
+  webhooksCleanup:
+    image: {tag: 'v1.19.2'}
+
+# One-install mode (the portal wizard command): the policy is applied by a Job after Kyverno is up, and the agent script
+# ConfigMap is created by this chart. install.sh turns both off because it applies them itself.
+policyAsHook: true
+agentScript:
+  install: true
+policyInstaller:
+  image: registry.k8s.io/kubectl:v1.31.4

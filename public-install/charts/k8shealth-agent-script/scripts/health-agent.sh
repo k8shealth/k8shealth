@@ -19,7 +19,7 @@ trap '' HUP
 #   SCRIPT_VERSION="script-<12 hex>" = first 12 chars of SHA-256(agent.sh body with this line removed).
 #   Same script body -> same hash. Go-only rebuilds leave agent.sh unchanged -> same SCRIPT_VERSION.
 # -----------------------------
-SCRIPT_VERSION="1.0.177"
+SCRIPT_VERSION="1.0.178"
 
 # -----------------------------
 # Config / defaults
@@ -671,6 +671,22 @@ collect_volumes() {
   printf '[%s]' "$_vol_out"
 }
 
+# The loop runs every INTERVAL seconds (60 in the injected policy). A file test queued in the manager UI adds its path to
+# the agent's fileAccessTargets, so instead of sleeping the whole interval this wakes as soon as that target list changes
+# (the agent picks the test up within ~3s), and the UI answer comes back in seconds, not up to a minute. The list is
+# compared sorted: the agent does not promise an order. A failed or empty fetch never wakes the loop.
+wait_next_run() {
+  _prev="$1"
+  _waited=0
+  while [ "$_waited" -lt "$INTERVAL" ]; do
+    sleep 3
+    _waited=$((_waited + 3))
+    _cfg="$(agent_get "$SCRIPT_CONFIG_URL" 2)"
+    [ -n "$_cfg" ] || continue
+    _now="$(extract_access_targets "$_cfg" 2>/dev/null | sort || true)"
+    if [ "$_now" != "$_prev" ]; then return 0; fi
+  done
+}
 # -----------------------------
 # Main
 # -----------------------------
@@ -695,6 +711,7 @@ main_loop() {
 
     FILES="$(extract_config_files "$RAW" || true)"
     TARGETS="$(extract_access_targets "$RAW" || true)"
+    CONFIG_TARGETS="$(printf '%s\n' "$TARGETS" | sort)"
     # Auto-discover CIFS/SMB mounts in this container; merge with config targets, dedupe by path so
     # same mount is not reported twice if sidecar (CifsMounts) and script both see it
     AUTO_MOUNTS="$(list_cifs_mounts 2>/dev/null || true)"
@@ -955,7 +972,7 @@ EOF
 
     rm -f "$TMPFILE" "$TMPFILES" "$TMPACCESS" 2>/dev/null || true
 
-    sleep "$INTERVAL"
+    wait_next_run "$CONFIG_TARGETS"
   done
 }
 

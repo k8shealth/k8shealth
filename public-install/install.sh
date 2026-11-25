@@ -9,7 +9,7 @@
 #   K8SH_NAMESPACE        namespace for the manager                          (default k8shealth)
 #   K8SH_MANAGER_IMAGE    manager image repository                           (default ghcr.io/k8shealth/health-manager)
 #   K8SH_MANAGER_TAG      manager image tag                                  (default: the chart's)
-#   K8SH_AGENT_IMAGE      full agent image reference                         (default ghcr.io/k8shealth/health-agent:1.0.324)
+#   K8SH_AGENT_IMAGE      full agent image reference                         (default ghcr.io/k8shealth/health-agent:1.0.328)
 #   K8SH_DOMAIN           label prefix for onboarding                        (default k8shealth.io)
 #   K8SH_DB_URL           external MySQL JDBC url; when set the bundled MySQL is not deployed
 #   K8SH_DB_USER / K8SH_DB_PASSWORD   credentials for the external MySQL
@@ -25,7 +25,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NS="${K8SH_NAMESPACE:-k8shealth}"
 DOMAIN="${K8SH_DOMAIN:-k8shealth.io}"
-AGENT_IMAGE="${K8SH_AGENT_IMAGE:-ghcr.io/k8shealth/health-agent:1.0.324}"
+AGENT_IMAGE="${K8SH_AGENT_IMAGE:-ghcr.io/k8shealth/health-agent:1.0.328}"
 MANAGER_IMAGE="${K8SH_MANAGER_IMAGE:-ghcr.io/k8shealth/health-manager}"
 MANAGER_CHART="${K8SH_MANAGER_CHART:-$HERE/charts/health-manager}"
 MANAGER_URL="http://health-manager.${NS}.svc:8080"   # headless service: clients hit the pod directly, so use the container port
@@ -79,10 +79,10 @@ helm upgrade --install health-agent "$HERE/charts/k8shealth-agent-script" -n "$N
 
 say "Agent injection policy (label ${DOMAIN}/enabled=enabled)"
 if [[ $KYVERNO_EXISTING == 1 ]]; then
-  helm upgrade --install k8shealth-policy "$HERE/charts/k8shealth-policy" -n "$NS" -f /tmp/k8sh-kyverno-policy.yaml --set kyverno.install=false --wait --timeout 10m
+  helm upgrade --install k8shealth-policy "$HERE/charts/k8shealth-policy" -n "$NS" -f /tmp/k8sh-kyverno-policy.yaml --set kyverno.install=false --set policyAsHook=false --set agentScript.install=false --wait --timeout 10m
 else
   # Helm cannot create the policy in the same release that installs Kyverno's CRDs, hence the second step.
-  helm upgrade --install kyverno "$HERE/charts/k8shealth-policy" -n kyverno -f /tmp/k8sh-kyverno-policy.yaml --wait --timeout 10m
+  helm upgrade --install kyverno "$HERE/charts/k8shealth-policy" -n kyverno -f /tmp/k8sh-kyverno-policy.yaml --set policyAsHook=false --set agentScript.install=false --wait --timeout 10m
 fi
 say 'Manager'
 ARGS=(--set "image.repository=$MANAGER_IMAGE" --set "agent.domain=$DOMAIN" --set selfMonitor.enabled=true --set onboarding.enabled=true --set cluster.inCluster.enabled=true)

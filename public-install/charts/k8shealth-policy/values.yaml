@@ -1,6 +1,6 @@
 healthAgentSidecar:
   # Full image reference injected into labelled pods.
-  image: ghcr.io/k8shealth/health-agent:1.0.329
+  image: ghcr.io/k8shealth/health-agent:1.0.330
   # Label / annotation prefix: pods labelled <domain>/enabled=enabled get the agent. The manager reports this
   # value to the UI, so the onboarding command always matches the installed policy.
   domain: k8shealth.io

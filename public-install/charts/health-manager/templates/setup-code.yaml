@@ -1,0 +1,21 @@
+{{- /*
+First-run setup code for "Sign in with k8shealth.io": generated here on install so the install command can print it
+(no extra command to run), kept on upgrade, never sent to the platform. The manager reads it from HM_SETUP_CODE and stores
+only its hash; it is single use and expires after 24 hours (the manager then makes a new one and prints it in its log).
+An install that predates this secret is left untouched (it already has a code in its log).
+*/ -}}
+{{- if .Values.onboarding.enabled }}
+{{- $sname := printf "%s-setup" (include "helm-chart.fullname" .) }}
+{{- $sexisting := lookup "v1" "Secret" .Release.Namespace $sname }}
+{{- if or $sexisting .Release.IsInstall }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $sname }}
+  labels:
+    {{- include "helm-chart.labels" . | nindent 4 }}
+type: Opaque
+data:
+  code: {{ include "helm-chart.setupCode" . | b64enc | quote }}
+{{- end }}
+{{- end }}

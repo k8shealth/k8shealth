@@ -60,3 +60,25 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+The first-run setup code (proof that the first administrator controls this cluster). Made once per render and shared by
+templates/setup-code.yaml and NOTES.txt, so the code printed at the end of the install is the one stored in the Secret.
+Kept on upgrade (read back from the Secret). No look-alike characters (0/O, 1/I/L): it is typed from a terminal.
+*/}}
+{{- define "helm-chart.setupCode" -}}
+{{- if not (hasKey .Values "_setupCode") -}}
+{{- $name := printf "%s-setup" (include "helm-chart.fullname" .) -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name -}}
+{{- $code := "" -}}
+{{- if and $existing $existing.data (hasKey $existing.data "code") -}}
+{{- $code = index $existing.data "code" | b64dec -}}
+{{- else -}}
+{{- $pool := upper (randAlphaNum 80) -}}
+{{- $clean := regexReplaceAll "[01OIL]" $pool "" -}}
+{{- $code = printf "%s-%s-%s" (substr 0 4 $clean) (substr 4 8 $clean) (substr 8 12 $clean) -}}
+{{- end -}}
+{{- $_ := set .Values "_setupCode" $code -}}
+{{- end -}}
+{{- index .Values "_setupCode" -}}
+{{- end }}

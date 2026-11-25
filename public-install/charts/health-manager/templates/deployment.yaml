@@ -168,6 +168,16 @@ spec:
                   name: {{ default (printf "%s-admin" (include "helm-chart.fullname" .)) .Values.admin.existingSecret }}
                   key: {{ default "password" .Values.admin.existingSecretKey }}
             {{- end }}
+            {{- if .Values.onboarding.enabled }}
+            # First-run setup code printed by the install command (templates/setup-code.yaml). optional: an install that
+            # predates the secret makes its own code, as before.
+            - name: HM_SETUP_CODE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ printf "%s-setup" (include "helm-chart.fullname" .) }}
+                  key: code
+                  optional: true
+            {{- end }}
             {{- if or .Values.mysql.enabled .Values.externalDatabase.url }}
             # Signing / encryption keys (templates/db-secrets.yaml). optional: an install that predates the secret keeps
             # running on the built-in default key instead of failing to start.

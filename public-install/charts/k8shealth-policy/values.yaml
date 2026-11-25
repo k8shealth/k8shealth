@@ -1,13 +1,14 @@
 healthAgentSidecar:
   # Full image reference injected into labelled pods.
-  image: ghcr.io/k8shealth/health-agent:1.0.328
+  image: ghcr.io/k8shealth/health-agent:1.0.329
   # Label / annotation prefix: pods labelled <domain>/enabled=enabled get the agent. The manager reports this
   # value to the UI, so the onboarding command always matches the installed policy.
   domain: k8shealth.io
   # Where injected agents report when a pod has no <domain>/health-agent-manager-url annotation.
   managerUrl: http://health-manager.k8shealth.svc:8080
   # Namespace holding the health-agent-health-script ConfigMap (cloned into workload namespaces on demand).
-  scriptNamespace: k8shealth
+  # Empty = the namespace this chart is installed into, so it never depends on a namespace that may not exist yet.
+  scriptNamespace: ""
 
 # Never block pod creation when Kyverno is briefly unavailable (the policy only mutates).
 kyverno:

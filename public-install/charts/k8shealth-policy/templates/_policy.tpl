@@ -49,7 +49,7 @@ spec:
         namespace: {{ `{{ request.object.metadata.namespace }}` | quote }}
         synchronize: false
         clone:
-          namespace: {{ .Values.healthAgentSidecar.scriptNamespace | quote }}
+          namespace: {{ .Values.healthAgentSidecar.scriptNamespace | default .Release.Namespace | quote }}
           name: health-agent-health-script
 
     # ------------------------------------------------------------

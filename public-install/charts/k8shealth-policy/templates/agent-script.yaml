@@ -5,7 +5,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: health-agent-health-script
-  namespace: {{ .Values.healthAgentSidecar.scriptNamespace }}
+  namespace: {{ .Values.healthAgentSidecar.scriptNamespace | default .Release.Namespace }}
   labels:
     app.kubernetes.io/name: k8shealth-agent-script
     app.kubernetes.io/instance: {{ .Release.Name }}

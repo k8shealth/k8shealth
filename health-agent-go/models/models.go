@@ -32,6 +32,9 @@ type AgentPayload struct {
 	PodName            string                              `json:"podName"`
 	DeploymentName     string                              `json:"deploymentName"`
 	Version            string                              `json:"version"`
+	// Capabilities lists optional protocol features this agent supports ("envRefs": UI tests that reference
+	// environment variables). The manager only uses a feature on agents that announce it; older agents omit the field.
+	Capabilities       []string                            `json:"capabilities,omitempty"`
     MemoryUsageBytes   int64                               `json:"memoryUsageBytes,omitempty"`
 	// ManagerRttMs is the TCP 3-way-handshake round-trip time (milliseconds) to the
 	// health-manager host, measured by the agent immediately before each callback POST.

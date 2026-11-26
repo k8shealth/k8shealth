@@ -43,6 +43,10 @@ type ResolvedCheck struct {
 	// Used in Pass 2 dedup to distinguish DB→DB displacement (alias, don't prune) from
 	// YAML→DB displacement (prune the stale YAML entry from registry).
 	FromDB bool
+	// MissingEnv lists the environment variables this check references ({ fromEnv: NAME }) that are not set in
+	// the agent container. A check with any of them cannot run: the runner records a failed result that names
+	// them, so the user sees the real cause instead of a check that stays Pending or fails with an empty value.
+	MissingEnv []string
 }
 
 // LoadFromEnv reads HEALTH_AGENT_HC_CHECKS_JSON or legacy HC_CHECKS_JSON from env and returns resolved checks.
@@ -66,15 +70,15 @@ func LoadFromEnv(env map[string]string) ([]ResolvedCheck, error) {
 		}
 		rc := ResolvedCheck{Name: jc.Name, Kind: strings.ToLower(jc.Kind)}
 		if jc.Value != nil {
-			rc.URL = resolve(env, jc.Value.URL)
+			rc.URL = resolveTracked(env, jc.Value.URL, &rc.MissingEnv)
 			if m := strings.ToUpper(strings.TrimSpace(jc.Value.Method)); m != "" {
 				rc.Method = m
 			}
-			rc.User = resolve(env, jc.Value.User)
-			rc.Pass = resolve(env, jc.Value.Pass)
-			rc.Host = resolve(env, jc.Value.Host)
-			rc.Db = resolve(env, jc.Value.Db)
-			rc.Path = resolve(env, jc.Value.Path)
+			rc.User = resolveTracked(env, jc.Value.User, &rc.MissingEnv)
+			rc.Pass = resolveTracked(env, jc.Value.Pass, &rc.MissingEnv)
+			rc.Host = resolveTracked(env, jc.Value.Host, &rc.MissingEnv)
+			rc.Db = resolveTracked(env, jc.Value.Db, &rc.MissingEnv)
+			rc.Path = resolveTracked(env, jc.Value.Path, &rc.MissingEnv)
 			rc.Mode = jc.Value.Mode
 			rc.StatusCode = jc.Value.StatusCode
 			rc.NotContains = jc.Value.NotContains
@@ -101,6 +105,12 @@ func LoadFromEnv(env map[string]string) ([]ResolvedCheck, error) {
 }
 
 func resolve(env map[string]string, v interface{}) string {
+	return resolveTracked(env, v, nil)
+}
+
+// resolveTracked is resolve, and also appends to *missing the name of every referenced env var that is not set.
+// A variable that is set but empty counts as set (an empty password can be intended).
+func resolveTracked(env map[string]string, v interface{}, missing *[]string) string {
 	if v == nil {
 		return ""
 	}
@@ -119,7 +129,11 @@ func resolve(env map[string]string, v interface{}) string {
 				key = s
 			}
 			if key != "" && env != nil {
-				return env[key]
+				val, set := env[key]
+				if !set && missing != nil {
+					*missing = append(*missing, key)
+				}
+				return val
 			}
 		}
 		// fromEnvInstanceSuffix mirrors BasicDataSource.setUsername() in the Java apps:
@@ -133,7 +147,10 @@ func resolve(env map[string]string, v interface{}) string {
 				key = s
 			}
 			if key != "" && env != nil {
-				base := env[key]
+				base, set := env[key]
+				if !set && missing != nil {
+					*missing = append(*missing, key)
+				}
 				podName := env["POD_NAME"]
 				ordinal := ""
 				if idx := strings.LastIndex(podName, "-"); idx != -1 {
@@ -181,17 +198,17 @@ func ResolveManagerChecks(checks []models.JsonCheck, env map[string]string) []Re
 		}
 		rc := ResolvedCheck{Name: jc.Name, Kind: strings.ToLower(jc.Kind), FromDB: true}
 		if jc.Value != nil {
-			rc.URL = resolve(env, jc.Value.URL)
+			rc.URL = resolveTracked(env, jc.Value.URL, &rc.MissingEnv)
 			// HTTP method (GET/HEAD/POST) configured in the manager UI - previously dropped here,
 			// so every manager-defined HTTP check ran as GET.
 			if m := strings.ToUpper(strings.TrimSpace(jc.Value.Method)); m != "" {
 				rc.Method = m
 			}
-			rc.User = resolve(env, jc.Value.User)
-			rc.Pass = resolve(env, jc.Value.Pass)
-			rc.Host = resolve(env, jc.Value.Host)
-			rc.Db = resolve(env, jc.Value.Db)
-			rc.Path = resolve(env, jc.Value.Path)
+			rc.User = resolveTracked(env, jc.Value.User, &rc.MissingEnv)
+			rc.Pass = resolveTracked(env, jc.Value.Pass, &rc.MissingEnv)
+			rc.Host = resolveTracked(env, jc.Value.Host, &rc.MissingEnv)
+			rc.Db = resolveTracked(env, jc.Value.Db, &rc.MissingEnv)
+			rc.Path = resolveTracked(env, jc.Value.Path, &rc.MissingEnv)
 			rc.Mode = jc.Value.Mode
 			rc.StatusCode = jc.Value.StatusCode
 			rc.NotContains = jc.Value.NotContains

@@ -256,7 +256,16 @@ func runOnce(cfg *config.Config, reg *registry.Registry, lastRun map[string]time
 
 		config.LogDebugf("Running health check: %s", c.Name)
 		var passed bool
-		switch c.Kind {
+		// A check that references an env var which is not set in this container cannot run: report that
+		// (failed, naming the variable) instead of running it with an empty value.
+		kindToRun := c.Kind
+		if len(c.MissingEnv) > 0 {
+			reportMissingEnv(pod, container, c, reg)
+			kindToRun = ""
+		} else {
+			clearMissingEnvReport(pod, container, c.Name, reg)
+		}
+		switch kindToRun {
 		case "http":
 			passed = runHTTPCheck(pod, container, c, reg)
 		case "mysql":

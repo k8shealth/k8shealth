@@ -158,6 +158,7 @@ func runManagerOnceWithScanner(cfg *config.Config, reg *registry.Registry, clien
 		PodName:            podName,
 		DeploymentName:     deployment,
 		Version:            cfg.AgentVersion,
+		Capabilities:       []string{health.CapabilityEnvRefs},
 		MemoryUsageBytes:   AgentProcessMemorySys(),
 		// Include the RTT measured on the previous callback cycle so the manager can
 		// track agent-to-manager network latency per pod.  Zero on the very first call.
@@ -506,6 +507,14 @@ func fetchAndRunPendingTests(base, deployment, myPodName string, reg *registry.R
 		}
 		kind, _ := test["kind"].(string)
 		kind = strings.ToLower(strings.TrimSpace(kind))
+		// Fields the user set to "$ENV": read them from this container's environment. An unset variable
+		// ends the test with a message that names it (the UI shows the message as the test result).
+		if missing := health.ResolvePendingEnvRefs(test, health.LookupAgentEnv); len(missing) > 0 {
+			msg := health.MissingEnvMessage(missing)
+			config.LogWarnf("[manager-sync] pending test %s kind=%s not run: %s", testId, kind, msg)
+			postTestResult(base, client, testId, health.PendingTestResult{Passed: false, Message: msg})
+			continue
+		}
 		config.LogInfof("[manager-sync] running pending test %s kind=%s pod=%s deployment=%s", testId, kind, myPodName, deployment)
 		switch kind {
 		case "file":

@@ -3,8 +3,27 @@ name: k8shealth-policy
 description: Kyverno + the k8shealth agent injection policy
 
 type: application
-version: "1.0.336"
-appVersion: "1.0.336"
+version: "1.0.343"
+appVersion: "1.0.343"
+home: https://k8shealth.io
+icon: https://k8shealth.io/img/favicon-heart.svg
+keywords:
+  - kyverno
+  - policy
+  - sidecar
+  - monitoring
+  - kubernetes
+maintainers:
+  - name: k8shealth
+    url: https://k8shealth.io
+annotations:
+  artifacthub.io/category: security
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://k8shealth.io/quickstart
+    - name: Website
+      url: https://k8shealth.io
 dependencies:
   - name: kyverno
     repository: https://kyverno.github.io/kyverno/

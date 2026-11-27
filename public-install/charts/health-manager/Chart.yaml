@@ -2,6 +2,25 @@ apiVersion: v2
 name: health-manager
 description: k8shealth manager - dashboard, API and incident engine for pods monitored by the k8shealth agent sidecar
 type: application
-version: "1.0.336"
-appVersion: "1.0.336"
+version: "1.0.343"
+appVersion: "1.0.343"
 home: https://k8shealth.io
+icon: https://k8shealth.io/img/favicon-heart.svg
+keywords:
+  - monitoring
+  - health-checks
+  - incident-management
+  - alerting
+  - kubernetes
+  - observability
+maintainers:
+  - name: k8shealth
+    url: https://k8shealth.io
+annotations:
+  artifacthub.io/category: monitoring-logging
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://k8shealth.io/quickstart
+    - name: Website
+      url: https://k8shealth.io

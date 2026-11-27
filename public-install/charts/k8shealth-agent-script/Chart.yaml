@@ -3,6 +3,23 @@ name: k8shealth-agent-script
 description: ConfigMap with health-agent.sh, copied into every namespace that has labelled workloads
 
 type: application
-version: "1.0.336"
-appVersion: "1.0.336"
+version: "1.0.343"
+appVersion: "1.0.343"
 home: https://k8shealth.io
+icon: https://k8shealth.io/img/favicon-heart.svg
+keywords:
+  - monitoring
+  - health-checks
+  - sidecar
+  - kubernetes
+maintainers:
+  - name: k8shealth
+    url: https://k8shealth.io
+annotations:
+  artifacthub.io/category: monitoring-logging
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://k8shealth.io/quickstart
+    - name: Website
+      url: https://k8shealth.io

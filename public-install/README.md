@@ -35,7 +35,7 @@ metadata:
       [{"name":"Health","kind":"http","value":{"url":"http://localhost:8080/actuator/health","statusCode":"200"}}]
 ```
 
-Supported check kinds: `http`, `mysql`, `file`.
+Supported check kinds: `http`, `mysql`, `postgres`, `redis`, `mongodb`, `kafka`, `file`.
 
 ## Install options
 

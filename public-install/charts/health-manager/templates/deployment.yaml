@@ -200,6 +200,14 @@ spec:
             - name: HM_TUNNEL_SERVICE
               value: "{{ .Release.Namespace }}/{{ include "helm-chart.fullname" . }}-tunnel"
             {{- end }}
+            # Which release channel the "update available" notice follows (stable = promoted builds, edge = every build).
+            # Where this manager is installed, so the update notice can show a ready-to-run helm command.
+            - name: HM_RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: HM_RELEASE_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: MANAGER_UPDATE_CHANNEL
+              value: {{ .Values.updateChannel | default "stable" | quote }}
             # Label prefix of the installed injection policy (<domain>/enabled). The onboarding card builds its command from it.
             - name: HM_LABEL_DOMAIN
               value: {{ .Values.agent.domain | quote }}

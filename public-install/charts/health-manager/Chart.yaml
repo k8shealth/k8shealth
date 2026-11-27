@@ -2,6 +2,6 @@ apiVersion: v2
 name: health-manager
 description: k8shealth manager - dashboard, API and incident engine for pods monitored by the k8shealth agent sidecar
 type: application
-version: 1.0.1
-appVersion: "1.0.333"
+version: "1.0.336"
+appVersion: "1.0.336"
 home: https://k8shealth.io

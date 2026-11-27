@@ -231,6 +231,9 @@ cluster:
 onboarding:
   enabled: false
 
+# Release channel the "update available" notice follows: stable (default, promoted builds) or edge (every build).
+updateChannel: stable
+
 # Way back in for an administrator who lost both the authenticator and the recovery codes, with no other
 # administrator to reset it. Set both for one deployment (helm upgrade --reuse-values --set recovery.mfaUser=alice
 # --set recovery.mfaToken=$(date +%s)): on start the account's two-step verification is switched off and a one-time

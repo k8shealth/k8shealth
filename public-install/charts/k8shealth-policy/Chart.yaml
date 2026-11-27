@@ -3,8 +3,8 @@ name: k8shealth-policy
 description: Kyverno + the k8shealth agent injection policy
 
 type: application
-version: 0.3.1
-appVersion: "1.0.333"
+version: "1.0.336"
+appVersion: "1.0.336"
 dependencies:
   - name: kyverno
     repository: https://kyverno.github.io/kyverno/
